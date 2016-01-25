@@ -148,7 +148,7 @@ func Read(r io.Reader) (blob *Blob, err error) {
 	var overallDataLength uint64
 	var dataLength uint64
 	var idLength uint16
-	headerReader := bytes.NewReader(header)
+	headerReader := bytes.NewBuffer(header)
 	for headerReader.Len() > 0 {
 		err = binary.Read(headerReader, byteOrder, &idLength)
 		if err != nil {
@@ -156,10 +156,9 @@ func Read(r io.Reader) (blob *Blob, err error) {
 			return
 		}
 
-		id := make([]byte, idLength)
-		_, err = io.ReadFull(headerReader, id)
-		if err != nil {
-			err = errors.New("reading blob header id: " + err.Error())
+		id := string(headerReader.Next(int(idLength)))
+		if len(id) != int(idLength) {
+			err = errors.New("reading blob header id: unexpected EOF")
 			return
 		}
 
@@ -170,7 +169,7 @@ func Read(r io.Reader) (blob *Blob, err error) {
 		}
 
 		b.header = append(b.header, indexItem{
-			string(id),
+			id,
 			overallDataLength,
 			overallDataLength + dataLength,
 		})
