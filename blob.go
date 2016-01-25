@@ -18,7 +18,7 @@ type indexItem struct {
 	end   uint64
 }
 
-// New creates an empty blob that you can add your resuorces to and later save
+// New creates an empty blob that you can add your resources to and later save
 // it to a file.
 func New() *Blob {
 	return &Blob{}
