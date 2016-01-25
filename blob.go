@@ -24,10 +24,13 @@ func New() *Blob {
 	return &Blob{}
 }
 
+// ItemCount returns the number of blob items. You can use GetByIndex with an
+// index from 0 to ItemCount()-1 to retrieve an item at a specific index.
 func (b *Blob) ItemCount() int {
 	return len(b.header)
 }
 
+// Append adds the given data at the end of the blob.
 func (b *Blob) Append(id string, data []byte) {
 	b.header = append(
 		b.header,
@@ -40,6 +43,11 @@ func (b *Blob) Append(id string, data []byte) {
 	b.data = append(b.data, data...)
 }
 
+// GetByID searches the blob for an entry with the given ID and returns the
+// first one found (if there are multiple entries with this ID only the first
+// one will ever be returned by this function).
+// If an entry was found, data contains the binary data and found will be true,
+// if no such entry exists, data will be nil and found will be false.
 func (b *Blob) GetByID(id string) (data []byte, found bool) {
 	for i := range b.header {
 		if b.header[i].id == id {
@@ -51,6 +59,17 @@ func (b *Blob) GetByID(id string) (data []byte, found bool) {
 	return
 }
 
+// GetIDAtIndex returns the ID of the entry at index i or the empty string if
+// the given index is out of bounds. See ItemCount for the number of items.
+func (b *Blob) GetIDAtIndex(i int) string {
+	if i < 0 || i >= len(b.header) {
+		return ""
+	}
+	return b.header[i].id
+}
+
+// GetByIndex returns the data of the ith item in the blob. If the index is out
+// of bounds, nil is returned and found will be false.
 func (b *Blob) GetByIndex(i int) (data []byte, found bool) {
 	if i < 0 || i >= len(b.header) {
 		return

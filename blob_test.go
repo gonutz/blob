@@ -207,6 +207,35 @@ func TestReadingZeroLengthDataEntry(t *testing.T) {
 	checkBytes(t, data, []byte{})
 }
 
+func TestAccessFunctions(t *testing.T) {
+	b := blob.New()
+	b.Append("one", []byte{1, 2, 3})
+	b.Append("two", []byte{4, 5})
+
+	if b.ItemCount() != 2 {
+		t.Error("item count was", b.ItemCount())
+	}
+
+	one, found := b.GetByID("one")
+	if !found {
+		t.Error("one not found")
+	}
+	checkBytes(t, one, []byte{1, 2, 3})
+
+	two, found := b.GetByIndex(1)
+	if !found {
+		t.Error("two not found by index")
+	}
+	checkBytes(t, two, []byte{4, 5})
+
+	if id := b.GetIDAtIndex(0); id != "one" {
+		t.Error("expected id is one but was", id)
+	}
+	if id := b.GetIDAtIndex(1); id != "two" {
+		t.Error("expected id is two but was", id)
+	}
+}
+
 func checkBytes(t *testing.T, got, want []byte) {
 	if len(got) != len(want) {
 		t.Fatalf("different lengths, want %v, but got %v", len(want), len(got))
