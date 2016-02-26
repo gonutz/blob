@@ -18,14 +18,14 @@ type indexItem struct {
 	end   uint64
 }
 
-// New creates an empty blob that you can add your resources to and later save
-// it to a file.
+// New creates an empty blob. You can add resources to it using Append. After
+// adding all resources, you can call Write to write it to a file for example.
 func New() *Blob {
 	return &Blob{}
 }
 
-// ItemCount returns the number of blob items. You can use GetByIndex with an
-// index from 0 to ItemCount()-1 to retrieve an item at a specific index.
+// ItemCount returns the number of blob items. When using GetIDAtIndex or
+// GetByIndex, valid inidices range from 0 to ItemCount()-1.
 func (b *Blob) ItemCount() int {
 	return len(b.header)
 }
@@ -44,10 +44,8 @@ func (b *Blob) Append(id string, data []byte) {
 }
 
 // GetByID searches the blob for an entry with the given ID and returns the
-// first one found (if there are multiple entries with this ID only the first
-// one will ever be returned by this function).
-// If an entry was found, data contains the binary data and found will be true,
-// if no such entry exists, data will be nil and found will be false.
+// first one found. If there is no entry with the given ID, data will be nil and
+// found will be false.
 func (b *Blob) GetByID(id string) (data []byte, found bool) {
 	for i := range b.header {
 		if b.header[i].id == id {
@@ -68,8 +66,9 @@ func (b *Blob) GetIDAtIndex(i int) string {
 	return b.header[i].id
 }
 
-// GetByIndex returns the data of the ith item in the blob. If the index is out
-// of bounds, nil is returned and found will be false.
+// GetByIndex returns the data of the entry at index i. If the index is out of
+// bounds, data will be nil and found will be false. See ItemCount for the
+// number of items.
 func (b *Blob) GetByIndex(i int) (data []byte, found bool) {
 	if i < 0 || i >= len(b.header) {
 		return
@@ -81,21 +80,19 @@ func (b *Blob) GetByIndex(i int) (data []byte, found bool) {
 
 // Write writes the whole binary blob to the given writer.
 //
-// Format: the data is structured as follows, numbers are encoded in little
-// endian byte order:
-// 1. Header length in bytes uint32, this is the overall length off the header,
-//    starting after this uint32
-// 2. Header: consists of consecutive items, each of which are structured as
-//    follows:
-//  2.1. ID length in bytes, uint16 giving the length of the following ID string
-//  2.2. ID, this is a string
-//  2.3. Data length, this uint64 gives the length of the data for this item in
-//       bytes
-// 3. Data, it starts directly after the header so the offset into the overall
-// file is the header lenght plus 4 bytes for the header header length itselfe,
-// which is a uint32.
-// For each item only the length is stored, the offset into the data can be
-// computed by summing up the lengths of the items coming before that.
+// Format (all numbers are encoded in little endian byte order):
+// - uint32: Header length in bytes, of the header starting after this number
+// - header starts here, it consists of mulitple entries structured as follows:
+// - uint16 ID length in bytes, length of the following ID
+// - string ID, UTF-8 encoded
+// - uint64 data length in bytes, of the data associated with this ID
+// - header ends here, the binary data starts directly after the header
+// - all data byte slices are simply appended and written as one blob after the
+// header
+//
+// Note that the header does not store offsets into the data explicitly, it
+// only stores the length of each item so the offset can be computed from the
+// cumulative sum of all data lengths of items that come before it.
 func (b *Blob) Write(w io.Writer) (err error) {
 	buffer := bytes.NewBuffer(nil)
 	for i := range b.header {
@@ -141,9 +138,8 @@ func (b *Blob) Write(w io.Writer) (err error) {
 
 var byteOrder = binary.LittleEndian
 
-// Read reads a binary blob from the given reader. If a read fails it returns
-// that read's error. If the error is non-nil the returned blob is nil.
-// See Blob.Write for a description of the data format.
+// Read reads a binary blob from the given reader. If an error occurs, the
+// returned blob will be nil. See Write for a description of the data format.
 func Read(r io.Reader) (blob *Blob, err error) {
 	var b Blob
 
