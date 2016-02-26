@@ -81,12 +81,19 @@ func (b *Blob) GetByIndex(i int) (data []byte, found bool) {
 // Write writes the whole binary blob to the given writer.
 //
 // Format (all numbers are encoded in little endian byte order):
+//
 // - uint32: Header length in bytes, of the header starting after this number
+//
 // - header starts here, it consists of mulitple entries structured as follows:
+//
 // - uint16 ID length in bytes, length of the following ID
+//
 // - string ID, UTF-8 encoded
+//
 // - uint64 data length in bytes, of the data associated with this ID
+//
 // - header ends here, the binary data starts directly after the header
+//
 // - all data byte slices are simply appended and written as one blob after the
 // header
 //
