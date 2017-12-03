@@ -16,6 +16,7 @@ var (
 
 func main() {
 	flag.Parse()
+
 	if *folder == "" {
 		fail("folder not specified")
 	}
@@ -64,5 +65,6 @@ func check(err error) {
 
 func fail(msg string) {
 	fmt.Println("error:", msg)
+	flag.Usage()
 	os.Exit(1)
 }
