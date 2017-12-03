@@ -95,7 +95,7 @@ func (b *Blob) GetByIndex(i int) (data []byte, found bool) {
 // - header ends here, the binary data starts directly after the header
 //
 // - all data byte slices are simply appended and written as one blob after the
-// header
+//   header
 //
 // Note that the header does not store offsets into the data explicitly, it
 // only stores the length of each item so the offset can be computed from the
