@@ -8,30 +8,30 @@ import (
 
 func TestEmptyBlobJustWritesZeroHeaderLength(t *testing.T) {
 	b := blob.New()
-	buffer := bytes.NewBuffer(nil)
+	var buf bytes.Buffer
 
-	err := b.Write(buffer)
+	err := b.Write(&buf)
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkBytes(t, buffer.Bytes(), []byte{0, 0, 0, 0})
+	checkBytes(t, buf.Bytes(), []byte{0, 0, 0, 0})
 }
 
 func TestOneResourceMakesOneHeaderEntry(t *testing.T) {
 	b := blob.New()
-	buffer := bytes.NewBuffer(nil)
+	var buf bytes.Buffer
 
 	b.Append("id", []byte{1, 2, 3})
-	err := b.Write(buffer)
+	err := b.Write(&buf)
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkBytes(t, buffer.Bytes(), []byte{
+	checkBytes(t, buf.Bytes(), []byte{
 		12, 0, 0, 0,
 		2, 0, // "id" is 2 bytes long
-		byte('i'), byte('d'),
+		'i', 'd',
 		3, 0, 0, 0, 0, 0, 0, 0, // data length
 		1, 2, 3, // actual data
 	})
@@ -51,11 +51,11 @@ func TestTwoResourcesMakeTwoEntries(t *testing.T) {
 	checkBytes(t, buffer.Bytes(), []byte{
 		25, 0, 0, 0,
 		2, 0, // "id" is 2 bytes long
-		byte('i'), byte('d'),
-		3, 0, 0, 0, 0, 0, 0, 0, // data length
+		'i', 'd',
+		3, 0, 0, 0, 0, 0, 0, 0, // data length for "id" data
 		3, 0, // "2nd" is 3 bytes long
-		byte('2'), byte('n'), byte('d'),
-		2, 0, 0, 0, 0, 0, 0, 0, // data length
+		'2', 'n', 'd',
+		2, 0, 0, 0, 0, 0, 0, 0, // data length for "2nd" data
 		1, 2, 3, // data for "id"
 		4, 5, // data for "2nd"
 	})
@@ -63,20 +63,20 @@ func TestTwoResourcesMakeTwoEntries(t *testing.T) {
 
 func TestZeroLengthEntryIsStillRepresentedInHeader(t *testing.T) {
 	b := blob.New()
-	buffer := bytes.NewBuffer(nil)
+	var buf bytes.Buffer
 
 	b.Append("id", []byte{})
-	err := b.Write(buffer)
+	err := b.Write(&buf)
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	checkBytes(t, buffer.Bytes(), []byte{
+	checkBytes(t, buf.Bytes(), []byte{
 		12, 0, 0, 0,
 		2, 0, // "id" is 2 bytes long
-		byte('i'), byte('d'),
+		'i', 'd',
 		0, 0, 0, 0, 0, 0, 0, 0, // data length
-		// there is no data, the slice is empty
+		// there is no data, "id" data is empty
 	})
 }
 
@@ -95,14 +95,14 @@ func TestZeroLengthEntryCanGoBetweenTwoEntries(t *testing.T) {
 	checkBytes(t, buffer.Bytes(), []byte{
 		33, 0, 0, 0,
 		1, 0, // "1" is 1 byte long
-		byte('1'),
-		1, 0, 0, 0, 0, 0, 0, 0, // data length
+		'1',
+		1, 0, 0, 0, 0, 0, 0, 0, // data length for "1" data
 		1, 0, // "_" is 1 byte long
-		byte('_'),
-		0, 0, 0, 0, 0, 0, 0, 0, // data length
+		'_',
+		0, 0, 0, 0, 0, 0, 0, 0, // data length for "_" data
 		1, 0, // "2" is 1 byte long
-		byte('2'),
-		1, 0, 0, 0, 0, 0, 0, 0, // data length
+		'2',
+		1, 0, 0, 0, 0, 0, 0, 0, // data length for "2" data
 		1, 2, // data
 	})
 }
@@ -126,7 +126,7 @@ func TestReadingOneEntryBlob(t *testing.T) {
 	buffer := bytes.NewBuffer([]byte{
 		12, 0, 0, 0,
 		2, 0, // "id" is 2 bytes long
-		byte('i'), byte('d'),
+		'i', 'd',
 		3, 0, 0, 0, 0, 0, 0, 0, // data length
 		1, 2, 3, // actual data
 	})
@@ -151,10 +151,10 @@ func TestReadingTwoEntryBlob(t *testing.T) {
 	buffer := bytes.NewBuffer([]byte{
 		25, 0, 0, 0,
 		2, 0, // "id" is 2 bytes long
-		byte('i'), byte('d'),
+		'i', 'd',
 		3, 0, 0, 0, 0, 0, 0, 0, // data length
 		3, 0, // "2nd" is 3 bytes long
-		byte('2'), byte('n'), byte('d'),
+		'2', 'n', 'd',
 		2, 0, 0, 0, 0, 0, 0, 0, // data length
 		1, 2, 3, // data for "id"
 		4, 5, // data for "2nd"
@@ -186,7 +186,7 @@ func TestReadingZeroLengthDataEntry(t *testing.T) {
 	buffer := bytes.NewBuffer([]byte{
 		12, 0, 0, 0,
 		2, 0, // "id" is 2 bytes long
-		byte('i'), byte('d'),
+		'i', 'd',
 		0, 0, 0, 0, 0, 0, 0, 0, // data length
 		// no data, length is 0
 	})
