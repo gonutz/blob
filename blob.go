@@ -160,6 +160,10 @@ func readHeader(r io.Reader) (header, uint64, error) {
 		return nil, 0, errors.New("read blob header length: " + err.Error())
 	}
 
+	if headerLength == 0 {
+		return header{}, 0, nil
+	}
+
 	// read the actual header
 	headerData := make([]byte, headerLength)
 	_, err = r.Read(headerData)

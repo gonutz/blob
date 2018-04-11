@@ -3,6 +3,7 @@ package blob_test
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"testing"
 
 	"github.com/gonutz/blob"
@@ -270,7 +271,7 @@ func TestWritingFailsIfIDIsTooLong(t *testing.T) {
 	}
 }
 
-func TestOpenBlob(t *testing.T) {
+func TestOpenBlobAndReadData(t *testing.T) {
 	b := blob.New()
 	b.Append("one", []byte{1, 2, 3})
 	b.Append("two", []byte{4, 5})
@@ -300,17 +301,11 @@ func TestOpenBlob(t *testing.T) {
 		if !found {
 			t.Error("one not found")
 		}
-		var buffer [32]byte
-		n, err := one.Read(buffer[:])
+		all, err := ioutil.ReadAll(one)
 		if err != nil {
 			t.Error("reading one", err)
 		}
-		if n != 3 {
-			t.Error("one has 3 bytes but got", n)
-		}
-		if buffer[0] != 1 || buffer[1] != 2 || buffer[2] != 3 {
-			t.Error("wrong bytes in one:", buffer[:3])
-		}
+		checkBytes(t, all, []byte{1, 2, 3})
 	}
 
 	{
@@ -318,17 +313,11 @@ func TestOpenBlob(t *testing.T) {
 		if !found {
 			t.Error("two not found")
 		}
-		var buffer [32]byte
-		n, err := two.Read(buffer[:])
+		all, err := ioutil.ReadAll(two)
 		if err != nil {
 			t.Error("reading two", err)
 		}
-		if n != 2 {
-			t.Error("two has 2 bytes but got", n)
-		}
-		if buffer[0] != 4 || buffer[1] != 5 {
-			t.Error("wrong bytes in two:", buffer[:2])
-		}
+		checkBytes(t, all, []byte{4, 5})
 	}
 
 	{
@@ -383,6 +372,50 @@ func TestOpenBlob(t *testing.T) {
 			t.Error("wrong last byte in one:", buffer[:1])
 		}
 	}
+}
+
+func TestOpenEmptyBlob(t *testing.T) {
+	buffer := bytes.NewReader([]byte{
+		0, 0, 0, 0, // empty header, 0 length
+	})
+
+	b, err := blob.Open(buffer)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.ItemCount() != 0 {
+		t.Fatal("item count was", b.ItemCount())
+	}
+}
+
+func TestOpenBlobWithEmptyItem(t *testing.T) {
+	buffer := bytes.NewReader([]byte{
+		12, 0, 0, 0,
+		2, 0, // "id" is 2 bytes long
+		'i', 'd',
+		0, 0, 0, 0, 0, 0, 0, 0, // data length
+		// no data, length was 0
+	})
+
+	b, err := blob.Open(buffer)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b.ItemCount() != 1 {
+		t.Fatal("item count was", b.ItemCount())
+	}
+	// item 1
+	data, found := b.GetByID("id")
+	if !found {
+		t.Fatal("id not found")
+	}
+	all, err := ioutil.ReadAll(data)
+	if err != nil {
+		t.Error("cannot read data", err)
+	}
+	checkBytes(t, all, []byte{})
 }
 
 func checkBytes(t *testing.T, got, want []byte) {
