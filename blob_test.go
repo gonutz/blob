@@ -2,8 +2,10 @@ package blob_test
 
 import (
 	"bytes"
-	"github.com/gonutz/blob"
+	"io"
 	"testing"
+
+	"github.com/gonutz/blob"
 )
 
 func TestEmptyBlobJustWritesZeroHeaderLength(t *testing.T) {
@@ -233,6 +235,153 @@ func TestAccessFunctions(t *testing.T) {
 	}
 	if id := b.GetIDAtIndex(1); id != "two" {
 		t.Error("expected id is two but was", id)
+	}
+}
+
+func TestWritingMaxLengthIDIsFine(t *testing.T) {
+	b := blob.New()
+	var id [blob.MaxIDLen]byte
+	for i := range id {
+		id[i] = 'a'
+	}
+	b.Append(string(id[:]), nil)
+	var buf bytes.Buffer
+
+	err := b.Write(&buf)
+
+	if err != nil {
+		t.Error(err)
+	}
+}
+
+func TestWritingFailsIfIDIsTooLong(t *testing.T) {
+	b := blob.New()
+	var id [blob.MaxIDLen + 1]byte
+	for i := range id {
+		id[i] = 'a'
+	}
+	b.Append(string(id[:]), nil)
+	var buf bytes.Buffer
+
+	err := b.Write(&buf)
+
+	if err == nil {
+		t.Error("error expected but got", buf.Bytes())
+	}
+}
+
+func TestOpenBlob(t *testing.T) {
+	b := blob.New()
+	b.Append("one", []byte{1, 2, 3})
+	b.Append("two", []byte{4, 5})
+	var buf bytes.Buffer
+	b.Write(&buf)
+	r := bytes.NewReader(buf.Bytes())
+
+	br, err := blob.Open(r)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	{
+		if n := br.ItemCount(); n != 2 {
+			t.Error("want 2 items but have", n)
+		}
+		if s := br.GetIDAtIndex(0); s != "one" {
+			t.Error("want 'one' but have", s)
+		}
+		if s := br.GetIDAtIndex(1); s != "two" {
+			t.Error("want 'two' but have", s)
+		}
+	}
+
+	{
+		one, found := br.GetByID("one")
+		if !found {
+			t.Error("one not found")
+		}
+		var buffer [32]byte
+		n, err := one.Read(buffer[:])
+		if err != nil {
+			t.Error("reading one", err)
+		}
+		if n != 3 {
+			t.Error("one has 3 bytes but got", n)
+		}
+		if buffer[0] != 1 || buffer[1] != 2 || buffer[2] != 3 {
+			t.Error("wrong bytes in one:", buffer[:3])
+		}
+	}
+
+	{
+		two, found := br.GetByID("two")
+		if !found {
+			t.Error("two not found")
+		}
+		var buffer [32]byte
+		n, err := two.Read(buffer[:])
+		if err != nil {
+			t.Error("reading two", err)
+		}
+		if n != 2 {
+			t.Error("two has 2 bytes but got", n)
+		}
+		if buffer[0] != 4 || buffer[1] != 5 {
+			t.Error("wrong bytes in two:", buffer[:2])
+		}
+	}
+
+	{
+		one, found := br.GetByID("one")
+		if !found {
+			t.Error("one not found the second time")
+		}
+
+		pos, err := one.Seek(2, io.SeekStart)
+		if err != nil {
+			t.Error(err)
+		}
+		if pos != 2 {
+			t.Error("want pos from start to be 2, got", pos)
+		}
+
+		var buffer [32]byte
+		n, err := one.Read(buffer[:])
+		if err != nil {
+			t.Error("reading last one byte", err)
+		}
+		if n != 1 {
+			t.Error("want one last byte of one but have", n)
+		}
+		if buffer[0] != 3 {
+			t.Error("wrong last byte in one:", buffer[:2])
+		}
+
+		pos, err = one.Seek(-1, io.SeekEnd)
+		if err != nil {
+			t.Error(err)
+		}
+		if pos != 2 {
+			t.Error("want pos from end to be 2, got", pos)
+		}
+
+		pos, err = one.Seek(-1, io.SeekCurrent)
+		if err != nil {
+			t.Error(err)
+		}
+		if pos != 1 {
+			t.Error("want pos from current to be 1, got", pos)
+		}
+		n, err = one.Read(buffer[0:1])
+		if err != nil {
+			t.Error("reading second one byte", err)
+		}
+		if n != 1 {
+			t.Error("want one last byte of one but have", n)
+		}
+		if buffer[0] != 2 {
+			t.Error("wrong last byte in one:", buffer[:1])
+		}
 	}
 }
 
