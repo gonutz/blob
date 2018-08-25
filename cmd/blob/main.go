@@ -10,61 +10,101 @@ import (
 )
 
 var (
-	folder  = flag.String("folder", "", "File or folder to be blobbed")
+	inPath  = flag.String("path", "", "File or folder to be blobbed")
 	outPath = flag.String("out", "", "Output path")
 )
 
 func main() {
+	os.Exit(runMain())
+}
+
+func runMain() int {
+	flag.Usage = func() {
+		fmt.Fprintf(flag.CommandLine.Output(), `blob takes a file or folder and creates a binary blob file of it.
+
+If you blob a file, its ID will be the file name without the directory.
+
+If you blob a folder, it will be traversed recursively and all regular files in
+the tree will be blobbed. The IDs are the relative file names with respect to
+the given root folder. The path separator is always slash.
+Example: the following file structure 
+  folder
+  ---> index.html
+  ---> static
+       ---> favicon.ico
+       ---> logo.png
+results in the following IDs: "index.html", "static/favicon.ico",
+"static/logo.png".
+
+Usage of blob:
+`)
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 
-	if *folder == "" {
-		fail("folder not specified")
+	if *inPath == "" {
+		errln("input path not specified")
+		flag.Usage()
+		return 1
 	}
 	if *outPath == "" {
-		fail("output path not specified")
+		errln("output path not specified")
+		flag.Usage()
+		return 1
 	}
 
-	f, err := os.Lstat(*folder)
+	f, err := os.Lstat(*inPath)
 	if err != nil {
-		fail("cannot find folder " + *folder + ": " + err.Error())
-	}
-
-	if !f.IsDir() {
-		fail(*folder + " is not a folder")
-		return
-	}
-
-	files, err := ioutil.ReadDir(*folder)
-	if err != nil {
-		fail("cannot read folder: " + err.Error())
+		errln("cannot find input path '" + *inPath + "': " + err.Error())
+		return 1
 	}
 
 	var b blob.Blob
-	for _, f := range files {
-		if !f.IsDir() {
-			data, err := ioutil.ReadFile(filepath.Join(*folder, f.Name()))
-			if err == nil {
-				b.Append(f.Name(), data)
+	if f.IsDir() {
+		err := filepath.Walk(*inPath, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
 			}
+			if !info.IsDir() {
+				// TODO add this file
+				data, err := ioutil.ReadFile(path)
+				if err != nil {
+					return err
+				}
+				relPath, _ := filepath.Rel(*inPath, path)
+				id := filepath.ToSlash(relPath)
+				b.Append(id, data)
+			}
+			return nil
+		})
+		if err != nil {
+			errln("unable to traverse input directory: " + err.Error())
+			return 1
 		}
+	} else {
+		data, err := ioutil.ReadFile(*inPath)
+		if err != nil {
+			errln("unable to read input file: " + err.Error())
+			return 1
+		}
+		b.Append(filepath.Base(*inPath), data)
 	}
 
 	outFile, err := os.Create(*outPath)
 	if err != nil {
-		fail("cannot create output file: " + err.Error())
+		errln("unable to create output file: " + err.Error())
+		return 1
 	}
 	defer outFile.Close()
-	b.Write(outFile)
-}
 
-func check(err error) {
-	if err != nil {
-		panic(err)
+	if err := b.Write(outFile); err != nil {
+		errln("unable to write output file: " + err.Error())
+		return 1
 	}
+
+	return 0
 }
 
-func fail(msg string) {
-	fmt.Println("error:", msg)
-	flag.Usage()
-	os.Exit(1)
+func errln(msg string) {
+	fmt.Fprintln(os.Stderr, "ERROR "+msg)
 }
