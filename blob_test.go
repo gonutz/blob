@@ -303,6 +303,51 @@ func TestOpenBlobAndReadData(t *testing.T) {
 	}
 
 	{
+		r, found := br.GetByID("<invalid>")
+		if found {
+			t.Error("invalid ID was found")
+		}
+		if r != nil {
+			t.Error("valid reader for invalid ID")
+		}
+	}
+
+	{
+		r, found := br.GetByIndex(-1)
+		if found {
+			t.Error("invalid index was found")
+		}
+		if r != nil {
+			t.Error("valid reader for invalid index")
+		}
+	}
+
+	{
+		r, _ := br.GetByIndex(0)
+		all, err := ioutil.ReadAll(r)
+		if err != nil {
+			t.Error("reading one", err)
+		}
+		checkBytes(t, all, []byte{1, 2, 3})
+	}
+
+	{
+		r, _ := br.GetByIndex(0)
+		n, err := r.Seek(0, 123)
+		if n != 0 || err.Error() != "blob.reader.Seek: invalid whence" {
+			t.Error(n, err)
+		}
+		n, err = r.Seek(-1, io.SeekStart)
+		if n != 0 || err.Error() != "blob.reader.Seek: negative position" {
+			t.Error(n, err)
+		}
+		n, err = r.Seek(100, io.SeekEnd)
+		if n != 3 {
+			t.Error("seeking beyond the end should clamp to end, but returned:", n)
+		}
+	}
+
+	{
 		one, found := br.GetByID("one")
 		if !found {
 			t.Error("one not found")
@@ -581,12 +626,42 @@ func TestOpenWithBrokenSeeker(t *testing.T) {
 	}
 }
 
-type failingSeeker struct {
-	io.ReadSeeker
+func TestOpenBlobWithSeekerFailingEventually(t *testing.T) {
+	b := blob.New()
+	b.Append("abc", []byte{1, 2, 3})
+	var buf bytes.Buffer
+	b.Write(&buf)
+
+	br, _ := blob.Open(&failingSeeker{
+		ReadSeeker: bytes.NewReader(buf.Bytes()),
+		failAtSeek: 10,
+	})
+	r, _ := br.GetByIndex(0)
+
+	var err error
+	for i := 0; i < 11; i++ {
+		r.Seek(0, io.SeekStart)
+		// record only the first read error
+		if _, err1 := r.Read(make([]byte, 3)); err1 != nil && err == nil {
+			err = err1
+		}
+	}
+	if err.Error() != "failingSeeker.Seek fails" {
+		t.Error(err)
+	}
 }
 
-func (*failingSeeker) Seek(offset int64, whence int) (int64, error) {
-	return 0, errors.New("failingSeeker.Seek fails")
+type failingSeeker struct {
+	io.ReadSeeker
+	failAtSeek int
+}
+
+func (s *failingSeeker) Seek(offset int64, whence int) (int64, error) {
+	s.failAtSeek--
+	if s.failAtSeek < 0 {
+		return 0, errors.New("failingSeeker.Seek fails")
+	}
+	return s.ReadSeeker.Seek(offset, whence)
 }
 
 func checkBytes(t *testing.T, got, want []byte) {
