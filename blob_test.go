@@ -475,6 +475,89 @@ func (w *failingWriter) Write(b []byte) (int, error) {
 	return len(b), nil
 }
 
+func TestFailingReaderForwardsErrorMessage(t *testing.T) {
+	b := blob.New()
+	b.Append("abc", []byte("ABC"))
+	var buf bytes.Buffer
+	b.Write(&buf)
+
+	for i := 0; i < 10; i++ {
+		r := &failingReader{
+			r:          bytes.NewReader(buf.Bytes()),
+			failAtRead: i,
+			errMsg:     fmt.Sprintf("read %d failed", i),
+		}
+		b, err := blob.Read(r)
+		if r.hasFailed {
+			if !strings.Contains(err.Error(), r.errMsg) {
+				t.Error(err, "does not contain", r.errMsg)
+			}
+			if b != nil {
+				t.Error("valid b after error")
+			}
+		}
+	}
+}
+
+type failingReader struct {
+	r          io.Reader
+	failAtRead int
+	errMsg     string
+	hasFailed  bool
+}
+
+func (r *failingReader) Read(b []byte) (int, error) {
+	r.failAtRead--
+	if r.failAtRead < 0 {
+		r.hasFailed = true
+		return 0, errors.New(r.errMsg)
+	}
+	return r.r.Read(b)
+}
+
+func TestInvalidIDLengthInHeader(t *testing.T) {
+	b, err := blob.Read(bytes.NewReader([]byte{
+		1, 0, 0, 0, // header has length 1
+		1, // but we need to read at least a uint16 here for the first ID length
+	}))
+	if !strings.HasPrefix(err.Error(), "read blob header id length: ") {
+		t.Error("error was:", err)
+	}
+	if b != nil {
+		t.Error("valid b after error")
+	}
+}
+
+func TestHeaderContainsWrongIDLength(t *testing.T) {
+	b, err := blob.Read(bytes.NewReader([]byte{
+		5, 0, 0, 0,
+		5, 0, // says ID has length 5
+		'A', 'B', 'C', // but it only has 3 bytes
+	}))
+	if err.Error() != "read blob header id: unexpected EOF" {
+		t.Error("error was:", err)
+	}
+	if b != nil {
+		t.Error("valid b after error")
+	}
+}
+
+func TestDataLengthInHeaderIsIncomplete(t *testing.T) {
+	b, err := blob.Read(bytes.NewReader([]byte{
+		5, 0, 0, 0,
+		3, 0,
+		'A', 'B', 'C',
+		1, 2, 3, 4, 5, // only 5 bytes, really want a uint64 here
+	}))
+
+	if !strings.HasPrefix(err.Error(), "read blob header data length: ") {
+		t.Error("error was:", err)
+	}
+	if b != nil {
+		t.Error("valid b after error")
+	}
+}
+
 func checkBytes(t *testing.T, got, want []byte) {
 	if len(got) != len(want) {
 		t.Fatalf("different lengths, want %v, but got %v", len(want), len(got))
