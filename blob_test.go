@@ -558,6 +558,37 @@ func TestDataLengthInHeaderIsIncomplete(t *testing.T) {
 	}
 }
 
+func TestOpenBrokenHeader(t *testing.T) {
+	b, err := blob.Open(bytes.NewReader([]byte{1, 0, 0, 0, 1}))
+	if err == nil {
+		t.Error("error expected")
+	}
+	if b != nil {
+		t.Error("want nil blob after error")
+	}
+}
+
+func TestOpenWithBrokenSeeker(t *testing.T) {
+	var buf bytes.Buffer
+	blob.New().Write(&buf)
+
+	b, err := blob.Open(&failingSeeker{ReadSeeker: bytes.NewReader(buf.Bytes())})
+	if err == nil {
+		t.Error("error expected")
+	}
+	if b != nil {
+		t.Error("want nil blob after error")
+	}
+}
+
+type failingSeeker struct {
+	io.ReadSeeker
+}
+
+func (*failingSeeker) Seek(offset int64, whence int) (int64, error) {
+	return 0, errors.New("failingSeeker.Seek fails")
+}
+
 func checkBytes(t *testing.T, got, want []byte) {
 	if len(got) != len(want) {
 		t.Fatalf("different lengths, want %v, but got %v", len(want), len(got))
