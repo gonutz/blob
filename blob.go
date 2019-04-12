@@ -113,23 +113,11 @@ func (b *Blob) Write(w io.Writer) (err error) {
 		if len(b.header[i].id) > MaxIDLen {
 			return errors.New("blob.Blob.Write: ID is too long")
 		}
-		err = binary.Write(buffer, byteOrder, uint16(len(b.header[i].id)))
-		if err != nil {
-			err = errors.New("blob.Blob.Write: cannot write header ID length: " + err.Error())
-			return
-		}
-		_, err = buffer.Write([]byte(b.header[i].id))
-		if err != nil {
-			err = errors.New("blob.Blob.Write: cannot write header ID: " + err.Error())
-			return
-		}
-
+		// writing to bytes.Buffer never returns error != nil so do not check it
+		binary.Write(buffer, byteOrder, uint16(len(b.header[i].id)))
+		buffer.Write([]byte(b.header[i].id))
 		length := b.header[i].end - b.header[i].start
-		err = binary.Write(buffer, byteOrder, length)
-		if err != nil {
-			err = errors.New("blob.Blob.Write: cannot write header length: " + err.Error())
-			return
-		}
+		binary.Write(buffer, byteOrder, length)
 	}
 	// write the header length
 	err = binary.Write(w, byteOrder, uint32(buffer.Len()))

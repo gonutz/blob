@@ -2,8 +2,11 @@ package blob_test
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
+	"strings"
 	"testing"
 
 	"github.com/gonutz/blob"
@@ -231,6 +234,9 @@ func TestAccessFunctions(t *testing.T) {
 	}
 	checkBytes(t, two, []byte{4, 5})
 
+	if id := b.GetIDAtIndex(-1); id != "" {
+		t.Error("invalid index should result in empty string but was", id)
+	}
 	if id := b.GetIDAtIndex(0); id != "one" {
 		t.Error("expected id is one but was", id)
 	}
@@ -416,6 +422,57 @@ func TestOpenBlobWithEmptyItem(t *testing.T) {
 		t.Error("cannot read data", err)
 	}
 	checkBytes(t, all, []byte{})
+}
+
+func TestUnknownIDsAreNotFound(t *testing.T) {
+	var b blob.Blob
+	data, found := b.GetByID("<invalid>")
+	if found {
+		t.Error("should not have been found")
+	}
+	if data != nil {
+		t.Error("data should be nil but was", data)
+	}
+}
+
+func TestInvalidIndexIsNotFound(t *testing.T) {
+	var b blob.Blob
+	data, found := b.GetByIndex(-1)
+	if found {
+		t.Error("should not have been found")
+	}
+	if data != nil {
+		t.Error("data should be nil but was", data)
+	}
+}
+
+func TestFailingWriterForwardsErrorMessage(t *testing.T) {
+	b := blob.New()
+	b.Append("abc", []byte("ABC"))
+	b.Append("123", []byte("456"))
+
+	for i := 0; i < 10; i++ {
+		w := &failingWriter{failAtWrite: i, errMsg: fmt.Sprintf("fail on write %d", i)}
+		err := b.Write(w)
+		if w.hasFailed && !strings.Contains(err.Error(), w.errMsg) {
+			t.Error(err, "does not contain", w.errMsg)
+		}
+	}
+}
+
+type failingWriter struct {
+	failAtWrite int
+	errMsg      string
+	hasFailed   bool
+}
+
+func (w *failingWriter) Write(b []byte) (int, error) {
+	w.failAtWrite--
+	if w.failAtWrite < 0 {
+		w.hasFailed = true
+		return 0, errors.New(w.errMsg)
+	}
+	return len(b), nil
 }
 
 func checkBytes(t *testing.T, got, want []byte) {
