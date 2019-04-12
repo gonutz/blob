@@ -318,10 +318,10 @@ func (r *reader) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekEnd:
 		newPos = r.end + offset
 	default:
-		return 0, errors.New("payload.reader.Seek: invalid whence")
+		return 0, errors.New("blob.reader.Seek: invalid whence")
 	}
 	if newPos < r.start {
-		return r.pos - r.start, errors.New("payload.reader.Seek: negative position")
+		return r.pos - r.start, errors.New("blob.reader.Seek: negative position")
 	}
 	if newPos > r.end {
 		newPos = r.end
