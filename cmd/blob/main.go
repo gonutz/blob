@@ -66,7 +66,7 @@ Usage of blob:
 				return err
 			}
 			if !info.IsDir() {
-				// TODO add this file
+				// add this file
 				data, err := ioutil.ReadFile(path)
 				if err != nil {
 					return err
